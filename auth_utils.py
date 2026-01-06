@@ -135,6 +135,7 @@ def require_auth():
     
     if not st.session_state['authenticated']:
         st.warning("Please log in to access this page")
+        st.page_link("Home.py", label="Go to Login Page 🔐", icon="🔐")
         st.stop()
 
 def check_permission(required_role: str) -> bool:

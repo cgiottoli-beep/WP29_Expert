@@ -146,8 +146,15 @@ if user_query:
                 # Sources (Collapsed by default, simplified)
                 if enriched_chunks:
                     with st.expander("📚 View Sources", expanded=False):
+                        seen_sources = set()
                         for chunk in enriched_chunks:
                             symbol = chunk.get('symbol', 'Doc')
+                            
+                            # Skip duplicates based on symbol
+                            if symbol in seen_sources:
+                                continue
+                            seen_sources.add(symbol)
+                            
                             url = chunk.get('signed_url')
                             if url:
                                 st.markdown(f"🔗 [{symbol}]({url})")
