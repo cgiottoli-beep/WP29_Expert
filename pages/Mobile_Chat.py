@@ -36,18 +36,26 @@ st.markdown("""
     
     /* User Message Style */
     .stChatMessage[data-testid="stChatMessage"]:nth-child(odd) {
-        background-color: #e3f2fd;
+        background-color: #d1e8ff;
+        color: #000000 !important; /* Force black text */
         border-radius: 15px 15px 2px 15px;
-        padding: 10px;
+        padding: 15px;
         border: 1px solid #bbdefb;
     }
     
     /* Assistant Message Style */
     .stChatMessage[data-testid="stChatMessage"]:nth-child(even) {
-        background-color: #f5f5f5;
+        background-color: #ffffff;
+        color: #000000 !important; /* Force black text */
         border-radius: 15px 15px 15px 2px;
-        padding: 10px;
+        padding: 15px;
         border: 1px solid #e0e0e0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    /* Force text color for markdown elements inside bubbles */
+    .stChatMessage p, .stChatMessage li, .stChatMessage h1, .stChatMessage h2, .stChatMessage h3 {
+        color: #000000 !important;
     }
     
     /* Input area optimization */
