@@ -95,6 +95,7 @@ def render_sidebar():
             st.page_link("pages/5_AI_Assistant.py", label="AI Assistant", icon="🤖")
             st.page_link("pages/7_Organization_Chart.py", label="Org Chart", icon="📊")
             st.page_link("pages/6_Report_Generator.py", label="Report Generator", icon="📝")
+            st.page_link("pages/Mobile_Chat.py", label="Mobile View 📱", icon="📱")
             
             # Collaborator Only
             if check_permission('collaborator'):
