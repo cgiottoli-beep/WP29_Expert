@@ -112,9 +112,15 @@ if user_query:
                 # Show sources
                 if relevant_chunks:
                     with st.expander("📚 Sources"):
+                        seen_symbols = set()
                         for chunk in enriched_chunks:
-                            # Make symbol clickable if we have a URL
+                            # Use symbol as unique identifier
                             symbol_text = chunk.get('symbol', 'Unknown')
+                            
+                            # Skip duplicates
+                            if symbol_text in seen_symbols:
+                                continue
+                            seen_symbols.add(symbol_text)
                             
                             # Calculate match percentage
                             score = float(chunk.get('similarity', 0)) * 100
@@ -127,7 +133,7 @@ if user_query:
                                 
                             st.markdown(f"*{chunk.get('doc_title', 'Unknown Title')}*")
                             
-                            # Clean up content chunk to prevent accidental markdown rendering (huge text)
+                            # Clean up content chunk for preview
                             clean_chunk = chunk['content_chunk'][:300].replace('\n', ' ').replace('#', '').strip()
                             st.caption(f"_{clean_chunk}..._")
                             st.markdown("---")

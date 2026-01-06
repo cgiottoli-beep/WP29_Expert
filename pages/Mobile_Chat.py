@@ -106,7 +106,7 @@ if user_query:
         with st.spinner("Thinking..."):
             try:
                 # 1. Search
-                relevant_chunks = EmbeddingService.search_with_reranking(user_query, limit=5) # Reduced limit for mobile
+                relevant_chunks = EmbeddingService.search_with_reranking(user_query, limit=10) # Matching desktop limit
                 
                 # 2. Enrich Citations
                 enriched_chunks = []
