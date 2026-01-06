@@ -107,6 +107,7 @@ def render_sidebar():
             # Admin Only
             if check_permission('admin'):
                 st.page_link("pages/8_User_Management.py", label="User Management", icon="👥")
+            st.page_link("pages/99_Debug_Keys.py", label="Debug Keys 🐞", icon="🐞")
 
             # 3. User Status (Fixed at bottom)
             st.markdown("---")
