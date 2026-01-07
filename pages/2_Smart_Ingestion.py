@@ -21,8 +21,7 @@ if not check_permission('collaborator'):
     st.image("https://media.giphy.com/media/njYrp176NnVIn3rfkp/giphy.gif")
     st.stop()
 
-from auth_utils import require_auth
-require_auth()
+
 
 st.title("📤 Smart Ingestion")
 st.markdown("Upload PDFs with AI-powered metadata extraction")

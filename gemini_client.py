@@ -14,7 +14,9 @@ class GeminiClient:
     """Google Gemini API wrapper"""
     
     @staticmethod
-    def extract_metadata(text: str) -> Dict:
+    def get_model():
+        """Get the configured GenerativeModel instance"""
+        return genai.GenerativeModel(Config.GEMINI_PRO_MODEL)
         """
         Extract metadata from first page of PDF using Gemini Flash
         Returns: {symbol, title, author, regulation_ref, doc_type}

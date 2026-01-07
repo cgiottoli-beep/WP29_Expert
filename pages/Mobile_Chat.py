@@ -9,7 +9,7 @@ from supabase_client import SupabaseClient
 from auth_utils import require_auth
 
 # Mobile Configuration: Collapsed sidebar, wide layout
-st.set_page_config(page_title="Mobile Assistant", page_icon="📱", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="AI Assistant Light", page_icon="⚡", layout="wide", initial_sidebar_state="collapsed")
 
 # Auth Check
 require_auth()
@@ -80,7 +80,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.subheader("📱 WP.29 Assistant")
+# Top Bar with Title and Exit button
+col1, col2 = st.columns([5, 1])
+with col1:
+    st.subheader("⚡ AI Assistant Light")
+with col2:
+    if st.button("🏠", help="Back to Home"):
+        st.switch_page("Home.py")
 
 # Initialize chat history
 if 'chat_history' not in st.session_state:

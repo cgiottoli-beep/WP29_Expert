@@ -123,27 +123,55 @@ def main():
     # Welcome message
     st.markdown("---")
     
+    # System status
+    st.markdown("### 📊 System Status")
+    
+    try:
+        # Try to fetch some data to verify connection
+        groups = SupabaseClient.get_all_groups()
+        
+        status_col1, status_col2, status_col3 = st.columns(3)
+        
+        with status_col1:
+            st.metric("Database", "✅ Connected")
+        
+        with status_col2:
+            st.metric("Total Groups", len(groups))
+        
+        with status_col3:
+            # Fetch document and chunk counts
+            client = SupabaseClient.get_client()
+            doc_count = client.table("documents").select("id", count="exact").execute().count
+            chunk_count = client.table("embeddings").select("id", count="exact").execute().count
+            st.metric("Docs / Chunks", f"{doc_count} / {chunk_count}")
+        
+    except Exception as e:
+        st.error(f"⚠️ System Error: {str(e)}")
+        
+    # Welcome message
+    st.markdown("---")
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("### 🏛️ Structure")
+        st.markdown("### 📊 Org Chart")
         st.markdown("""
-        - Manage Groups (WP29, GRs, IWGs)
-        - Create Sessions
-        - Organize hierarchy
+        - Visualize Hierarchy
+        - Browse Working Groups
+        - View relationships
         """)
-        if st.button("Go to Admin & Structure", use_container_width=True):
-            st.switch_page("pages/1_Admin_Structure.py")
+        if st.button("View Organization Chart", use_container_width=True):
+            st.switch_page("pages/7_Organization_Chart.py")
     
     with col2:
-        st.markdown("### 📄 Documents")
+        st.markdown("### 🔍 Search")
         st.markdown("""
-        - Smart PDF ingestion
-        - AI metadata extraction
-        - Session document view
+        - Browse Regulations
+        - Search Sessions
+        - Filter by Date/Code
         """)
-        if st.button("Upload Documents", use_container_width=True):
-            st.switch_page("pages/2_Smart_Ingestion.py")
+        if st.button("Search Documents", use_container_width=True):
+            st.switch_page("pages/4_Search_Session.py")
     
     with col3:
         st.markdown("### 🤖 AI Assistant")
@@ -182,31 +210,8 @@ def main():
     st.markdown("---")
     
     # System status
-    st.markdown("### 📊 System Status")
-    
-    try:
-        # Try to fetch some data to verify connection
-        groups = SupabaseClient.get_all_groups()
-        
-        status_col1, status_col2, status_col3 = st.columns(3)
-        
-        with status_col1:
-            st.metric("Database", "✅ Connected")
-        
-        with status_col2:
-            st.metric("Total Groups", len(groups))
-        
-        with status_col3:
-            st.metric("AI Engine", "✅ Gemini Ready")
-        
-    except Exception as e:
-        st.error(f"⚠️ System Error: {str(e)}")
-        st.info("""
-        **First-time setup required:**
-        1. Run `init_database.sql` in your Supabase SQL Editor
-        2. Ensure pgvector extension is enabled
-        3. Verify .env configuration
-        """)
+    # System Status moved to top
+    pass
     
     # Quick start guide
     st.markdown("---")

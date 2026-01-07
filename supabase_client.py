@@ -188,11 +188,13 @@ class SupabaseClient:
         return response.data
     
     @staticmethod
-    def search_documents(filters: Dict[str, Any]) -> List[Dict]:
-        """Search documents with multiple filters"""
+    def search_documents(filters: Dict[str, Any], search_text: Optional[str] = None, 
+                        limit: int = 50, offset: int = 0) -> List[Dict]:
+        """Search documents with multiple filters, text search, and pagination"""
         client = SupabaseClient.get_client()
         query = client.table("documents").select("*, sessions!inner(group_id, code, year)")
         
+        # Apply Filters
         if "session_id" in filters:
             query = query.eq("session_id", filters["session_id"])
         if "doc_type" in filters:
@@ -200,31 +202,79 @@ class SupabaseClient:
         if "regulation_ref_id" in filters:
             query = query.eq("regulation_ref_id", filters["regulation_ref_id"])
         if "year" in filters:
-            # Filter on joined column
             query = query.eq("sessions.year", filters["year"])
+        if "group_id" in filters:
+            query = query.eq("sessions.group_id", filters["group_id"])
+            
+        # Apply Text Search (Server-side)
+        if search_text:
+            # Construct OR filter for text fields
+            # ILIKE is case-insensitive
+            text_filter = f"symbol.ilike.%{search_text}%,title.ilike.%{search_text}%,author.ilike.%{search_text}%,regulation_mentioned.ilike.%{search_text}%"
+            query = query.or_(text_filter)
+            
+        # Apply Pagination
+        query = query.range(offset, offset + limit - 1)
+        
+        # Order by creation or suitable field (e.g. symbol)
+        query = query.order("created_at", desc=True)
         
         response = query.execute()
         return response.data
+
+    @staticmethod
+    def get_documents_count(filters: Dict[str, Any], search_text: Optional[str] = None) -> int:
+        """Get total count of documents matching filters"""
+        client = SupabaseClient.get_client()
+        # Use count='exact', head=True to get only count without data
+        query = client.table("documents").select("*, sessions!inner(group_id, code, year)", count="exact", head=True)
+        
+        # Apply Filters (Must match search_documents logic)
+        if "session_id" in filters:
+            query = query.eq("session_id", filters["session_id"])
+        if "doc_type" in filters:
+            query = query.eq("doc_type", filters["doc_type"])
+        if "regulation_ref_id" in filters:
+            query = query.eq("regulation_ref_id", filters["regulation_ref_id"])
+        if "year" in filters:
+            query = query.eq("sessions.year", filters["year"])
+        if "group_id" in filters:
+            query = query.eq("sessions.group_id", filters["group_id"])
+            
+        if search_text:
+            text_filter = f"symbol.ilike.%{search_text}%,title.ilike.%{search_text}%,author.ilike.%{search_text}%,regulation_mentioned.ilike.%{search_text}%"
+            query = query.or_(text_filter)
+            
+        response = query.execute()
+        return response.count
 
     @staticmethod
     def get_documents_without_embeddings() -> List[Dict]:
         """Find documents that don't have embeddings generated yet"""
         client = SupabaseClient.get_client()
         
-        # 1. Get all documents
+        # 1. Try Optimized DB-Side RPC (Best Scalability)
+        try:
+            response = client.rpc("get_documents_without_embeddings").execute()
+            # If function exists and returns data, use it
+            return response.data
+        except Exception:
+            # Fallback for when RPC is not yet created
+            pass
+
+        # 2. Fallback: Client-side diff (Good for < 100k docs)
+        # Get all documents
         docs_response = client.table("documents").select("id, file_url, doc_type, symbol, title, sessions(group_id, year, code)").execute()
         all_docs = docs_response.data
         
         if not all_docs:
             return []
             
-        # 2. Get all embedding source IDs
-        # Note: This might be heavy if table is huge, better to use a left join RPC if possible,
-        # but for now client-side diff is fine for reasonable dataset size.
-        emb_response = client.table("embeddings").select("source_id", count="exact").execute()
+        # Get all embedding source IDs with high limit
+        emb_response = client.table("embeddings").select("source_id", count="exact").limit(100000).execute()
         existing_embedding_ids = {e['source_id'] for e in emb_response.data}
         
-        # 3. Find missing
+        # Find missing
         missing_docs = [d for d in all_docs if d['id'] not in existing_embedding_ids]
         return missing_docs
     

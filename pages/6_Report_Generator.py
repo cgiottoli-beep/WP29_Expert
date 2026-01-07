@@ -79,7 +79,11 @@ if st.button("🤖 Generate Summary", type="primary", use_container_width=True):
             # Group by regulation
             by_regulation = {}
             for doc in documents:
-                reg_id = doc.get('regulation_ref_id', 'General Topics')
+                # Handle potential None values explicitly
+                reg_id = doc.get('regulation_ref_id')
+                if not reg_id:
+                    reg_id = 'General Topics'
+                
                 if reg_id not in by_regulation:
                     by_regulation[reg_id] = []
                 by_regulation[reg_id].append(doc)
@@ -95,7 +99,17 @@ if st.button("🤖 Generate Summary", type="primary", use_container_width=True):
             full_summary += "---\n\n"
             
             # Generate for each regulation
-            for reg_id, docs in by_regulation.items():
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            total_regs = len(by_regulation)
+            
+            for idx, (reg_id, docs) in enumerate(by_regulation.items()):
+                status_text.markdown(f"**Processing:** {reg_id} ({idx + 1}/{total_regs})...")
+                
+                # Update progress at relative start (e.g. 0% for first item of many, or 10% buffering)
+                # We'll update to 'completed' percentage AFTER the work.
+                
                 st.markdown(f"#### Processing: {reg_id}")
                 
                 # Build document list
@@ -120,10 +134,13 @@ Be concise but comprehensive. Use bullet points for clarity.
 """
                 
                 try:
-                    model = GeminiClient.generate_embedding.__self__  # Access to genai
-                    import google.generativeai as genai
-                    model = genai.GenerativeModel('gemini-1.5-pro')
-                    response = model.generate_content(prompt)
+                    # Use GeminiClient to summarize directly
+                    # We construct a specific prompt for summarization
+                    summary_prompt = f"""
+                    You are an expert UN regulation analyst.
+                    {prompt}
+                    """
+                    response = GeminiClient.get_model().generate_content(summary_prompt)
                     summary_text = response.text
                 except Exception as e:
                     summary_text = f"Error generating summary: {e}"
@@ -135,6 +152,11 @@ Be concise but comprehensive. Use bullet points for clarity.
                 # Display in UI
                 with st.expander(f"📋 {reg_id}", expanded=True):
                     st.markdown(summary_text)
+                
+                # Update progress after completion
+                progress_bar.progress((idx + 1) / total_regs)
+            
+            status_text.markdown("**Analysis Complete!** ✅")
             
             # Store in session state for download
             st.session_state.generated_summary = full_summary
