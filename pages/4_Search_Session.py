@@ -260,42 +260,57 @@ try:
         
         # Get counts of embeddings for each document
         embedding_counts = {}
+        debug_emb_errors = []
         try:
-            client = SupabaseClient.get_client()
+            # Use Admin Client to bypass RLS for status checks
+            # This ensures we see the true count even if the user doesn't own the records
+            try:
+                client = SupabaseClient.get_admin_client()
+            except Exception:
+                # Fallback to normal client if Service Key not configured (local dev without .env?)
+                client = SupabaseClient.get_client()
             
             # Optimization: Only check status for the documents we currently have loaded
             current_doc_ids = [d['id'] for d in documents] if documents else []
             
             if current_doc_ids:
+                # Try optimized RPC first (single query for all docs)
                 try:
-                    # Fetch all source_ids for valid documents 
-                    # Use batching to avoid limit issues with large number of chunks per doc
-                    # 50 docs on page * 1000 chunks = 50k chunks (danger zone)
-                    # Batch size 5 docs guarantees ample headroom (5 * 2000 chunks = 10k << 100k limit)
-                    batch_size = 5
-                    for i in range(0, len(current_doc_ids), batch_size):
-                        batch = current_doc_ids[i:i + batch_size]
+                    rpc_response = client.rpc("get_embedding_counts", {
+                        "doc_ids": current_doc_ids
+                    }).execute()
+                    
+                    # Parse RPC results
+                    for row in rpc_response.data:
+                        embedding_counts[str(row['source_id'])] = row['count']
+                        
+                except Exception as rpc_err:
+                    # Fallback to individual queries if RPC not available
+                    # (Run optimize_embedding_counts.sql in Supabase to enable RPC)
+                    for doc_id in current_doc_ids:
                         try:
                             emb_response = client.table("embeddings") \
-                                .select("source_id") \
-                                .in_("source_id", batch) \
-                                .limit(50000) \
+                                .select("source_id", count="exact") \
+                                .eq("source_id", doc_id) \
+                                .limit(1) \
                                 .execute()
                             
-                            # Count frequency for this batch
-                            from collections import Counter
-                            batch_counts = Counter([item['source_id'] for item in emb_response.data])
-                            embedding_counts.update(batch_counts)
-                        except Exception as batch_err:
-                            print(f"Error fetching batch {i}: {batch_err}")
+                            if emb_response.count and emb_response.count > 0:
+                                embedding_counts[str(doc_id)] = emb_response.count
+                        except Exception as doc_err:
+                            debug_emb_errors.append(f"Doc {doc_id}: {str(doc_err)}")
                     
                 except Exception as e:
                     # Fallback or error logging
                     print(f"Error fetching embedding counts: {e}")
+                    debug_emb_errors.append(f"General: {str(e)}")
                 
         except Exception as e:
             st.error(f"Error fetching embedding status: {e}")
             embedding_counts = {}
+
+        if debug_emb_errors:
+            st.warning(f"⚠️ Some embedding status checks failed ({len(debug_emb_errors)} errors)")
 
         # LEGEND
         st.markdown("### 📊 Status Legend")

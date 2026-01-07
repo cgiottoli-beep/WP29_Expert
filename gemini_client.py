@@ -17,6 +17,9 @@ class GeminiClient:
     def get_model():
         """Get the configured GenerativeModel instance"""
         return genai.GenerativeModel(Config.GEMINI_PRO_MODEL)
+    
+    @staticmethod
+    def extract_metadata(text: str) -> Dict:
         """
         Extract metadata from first page of PDF using Gemini Flash
         Returns: {symbol, title, author, regulation_ref, doc_type}
@@ -180,24 +183,34 @@ Answer:
     @staticmethod
     def optimize_query(query: str) -> str:
         """
-        Translates/Optimizes the query into English for better vector search retrieval.
+        Extracts powerful search keywords from the user's query.
+        Prioritizes technical terms and synonyms in multiple languages.
         """
-        model = genai.GenerativeModel(Config.GEMINI_PRO_MODEL)
-        prompt = f"""
-You are a search query optimizer for a database of:
-1. UN Vehicle Regulations (English)
+        model = genai.GenerativeModel(Config.GEMINI_FLASH_MODEL)
+        prompt = f"""You are a search query optimizer for a database of:
+1. UN Vehicle Regulations (mostly English)
 2. Type Approval Authority Meeting (TAAM) Interpretations (English, German, French)
+3. Working documents from UNECE sessions (Formal/Informal proposals)
 
-Your task: Convert the user's query into a powerful keyword-based search string.
-Rules:
-1. **ALWAYS include the technical terms in English** (primary language).
-2. **IF relevant concepts exist in German (e.g., KBA documents), include the German terms too** (secondary language).
-3. Example: "omologazione individuale" -> "Individual Approval Einzelgenehmigung"
-4. Example: "pedestrian protection" -> "Pedestrian Protection Fußgängerschutz"
-5. Return ONLY the optimized string.
+Your task: Extract the MOST RELEVANT KEYWORDS from the user's query.
+
+CRITICAL RULES:
+1. Output ONLY keywords and technical terms, separated by spaces.
+2. DO NOT output full sentences or questions.
+3. Include English translations of any non-English terms.
+4. Include German translations for common automotive terms (for German documents).
+5. Include synonyms and related technical terms.
+6. For regulatory topics, include regulation numbers if implied (e.g., "headlamps" -> include "R48").
+
+EXAMPLES:
+- "che documenti trovi sui loghi?" -> "logo logos trademark brand Marke Warenzeichen manufacturer marking"
+- "omologazione individuale" -> "individual approval Einzelgenehmigung type-approval IVA"
+- "pedestrian protection requirements" -> "pedestrian protection Fußgängerschutz bumper front end R127"
+- "documenti della sessione 91 del GRE" -> "GRE session 91 GRE-91"
+- "proposta italiana sui fari" -> "Italy Italian headlamp headlight R48 R123 proposal"
 
 User Query: "{query}"
-Optimized Search String:
+Keywords:
 """
         try:
             response = model.generate_content(prompt)

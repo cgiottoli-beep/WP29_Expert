@@ -121,21 +121,40 @@ with tab1:
                 # Extract Metadata
                 meta = GeminiClient.extract_metadata(text)
                 
-                # Auto-detect Doc Type ID
-                ai_type = meta.get('doc_type', 'Other')
-                norm_type = "Other"
-                if "Proposal" in ai_type: norm_type = "Proposal"
-                elif "Report" in ai_type: norm_type = "Report"
-                elif "Agenda" in ai_type: norm_type = "Agenda"
+                # Auto-detect Doc Type - MUST match DB constraint
+                # Valid values: Report, Agenda, Adopted Proposals, Formal, Informal
+                ai_type = meta.get('doc_type', 'Formal').lower()
+                
+                if 'report' in ai_type:
+                    norm_type = "Report"
+                elif 'agenda' in ai_type:
+                    norm_type = "Agenda"
+                elif 'adopted' in ai_type:
+                    norm_type = "Adopted Proposals"
+                elif 'informal' in ai_type:
+                    norm_type = "Informal"
+                else:
+                    # Default to Formal for proposals, working docs, etc.
+                    norm_type = "Formal"
                 
                 # Auto-detect Regulation ID
                 ai_regs = meta.get('mentioned_regulations', [])
-                found_reg_id = None  # Logic to map string to ID could be added here if regulations are loaded
                 
-                # Store
+                # PRE-GENERATE chunks immediately while bytes are fresh
+                chunks = []
+                try:
+                    from pdf_processor import PDFProcessor
+                    chunks = PDFProcessor.extract_chunks(file_bytes, chunk_size=1000)
+                    # Don't use status_box - it gets overwritten. Just store the count
+                except Exception as chunk_err:
+                    # Store error for display later
+                    chunks = []
+                
+                # Store - save BOTH bytes and pre-generated chunks
                 st.session_state.bulk_results.append({
                     "file_name": file.name,
-                    "file_obj": file, # store reference
+                    "file_bytes": bytes(file_bytes),  # For upload
+                    "pre_chunks": chunks,  # For embedding (already extracted)
                     "symbol": meta.get('symbol', ''),
                     "title": meta.get('title', ''),
                     "author": meta.get('author', 'Unknown'),
@@ -143,7 +162,7 @@ with tab1:
                     "regulations": ", ".join(ai_regs) if ai_regs else "",
                     "date": datetime.now().date(),
                     "selected": True,
-                    "embed": True
+                    "embed": len(chunks) > 0  # Only embed if chunks exist
                 })
                 
                 progress_bar.progress((idx + 1) / len(uploaded_files))
@@ -168,20 +187,29 @@ with tab1:
         with st.form("bulk_save_form"):
             count = 0
             for i, result in enumerate(st.session_state.bulk_results):
-                with st.expander(f"📄 {result['file_name']} -> {result['symbol']}", expanded=(i==0)):
+                with st.expander(f"📄 {result['file_name']} -> {result['symbol']}", expanded=True):
                     result['selected'] = st.checkbox("Include this file", value=result['selected'], key=f"sel_{i}")
                     
                     c1, c2, c3 = st.columns([1, 2, 1])
                     with c1:
                         result['symbol'] = st.text_input("Symbol", value=result['symbol'], key=f"sym_{i}")
-                        result['doc_type'] = st.selectbox("Type", ["Proposal", "Report", "Agenda", "Other"], index=["Proposal", "Report", "Agenda", "Other"].index(result['doc_type']), key=f"typ_{i}")
+                        # Valid DB values: Report, Agenda, Adopted Proposals, Formal, Informal
+                        valid_types = ["Formal", "Informal", "Report", "Agenda", "Adopted Proposals"]
+                        current_type = result['doc_type'] if result['doc_type'] in valid_types else "Formal"
+                        result['doc_type'] = st.selectbox("Type", valid_types, index=valid_types.index(current_type), key=f"typ_{i}")
                     with c2:
                         result['title'] = st.text_input("Title", value=result['title'], key=f"tit_{i}")
                         result['author'] = st.text_input("Author", value=result['author'], key=f"aut_{i}")
                     with c3:
                          result['embed'] = st.checkbox("Generate Search Embeddings", value=result['embed'], key=f"emb_{i}")
-                         # Regulation mapping is hard in bulk without complex UI, maybe just text for now
-                         st.caption(f"Suggested Regs: {result['regulations']}")
+                         # Show chunk count
+                         chunk_count = len(result.get('pre_chunks', []))
+                         if chunk_count > 0:
+                             st.caption(f"✓ {chunk_count} chunks extracted")
+                         else:
+                             st.caption("⚠ No chunks extracted")
+                         # Editable regulations field
+                         result['regulations'] = st.text_input("Regulations", value=result['regulations'], key=f"reg_{i}", help="Comma-separated, e.g. R48, R149")
                 
                 count += 1
             
@@ -196,28 +224,76 @@ with tab1:
                     
                     for idx, item in enumerate(to_save):
                         try:
-                            f_obj = item['file_obj']
-                            f_obj.seek(0)
-                            bytes_data = f_obj.read()
+                            # Get bytes for upload
+                            bytes_data = item['file_bytes']
                             
-                            # Upload
-                            path = f"documents/{item['symbol'].replace('/','-')}.pdf"
-                            url = SupabaseClient.upload_file(path, bytes_data)
+                            # Step 1: Sanitize filename and upload
+                            import re
+                            safe_symbol = re.sub(r'[/\\:*?"<>|]', '-', item['symbol'])
+                            path = f"documents/{safe_symbol}.pdf"
                             
-                            # DB Record
-                            doc_id = SupabaseClient.create_document(
-                                session_id=selected_session_id,
-                                symbol=item['symbol'],
-                                title=item['title'],
-                                author=item['author'],
-                                doc_type=item['doc_type'],
-                                file_url=url,
-                                submission_date=item['date'].strftime("%Y-%m-%d")
-                            )
+                            # Step 2: Upload to Supabase Storage
+                            try:
+                                url = SupabaseClient.upload_file(path, bytes_data)
+                            except Exception as upload_err:
+                                raise Exception(f"Upload failed: {upload_err}")
                             
-                            # Embedding
-                            if item['embed']:
-                                EmbeddingService.generate_document_embeddings(doc_id, bytes_data, item['doc_type'])
+                            # Step 3: Create DB Record
+                            try:
+                                doc_response = SupabaseClient.create_document(
+                                    session_id=selected_session_id,
+                                    symbol=item['symbol'],
+                                    title=item['title'],
+                                    author=item['author'],
+                                    doc_type=item['doc_type'],
+                                    file_url=url,
+                                    submission_date=item['date'].strftime("%Y-%m-%d")
+                                )
+                                doc_id = doc_response['id']  # Extract ID from response
+                            except Exception as db_err:
+                                raise Exception(f"DB create failed: {db_err}")
+                            
+                            # Step 4: Store pre-generated embeddings
+                            if item['embed'] and len(item.get('pre_chunks', [])) > 0:
+                                try:
+                                    chunks = item['pre_chunks']
+                                    authority_level = 10 if item['doc_type'] in ['Report', 'Agenda'] else 1
+                                    
+                                    # Create progress display
+                                    total_chunks = len(chunks)
+                                    emb_progress = st.progress(0)
+                                    emb_status = st.empty()
+                                    
+                                    embeddings_created = 0
+                                    for chunk_idx, chunk in enumerate(chunks):
+                                        if not chunk.strip():
+                                            continue
+                                        
+                                        # Show progress
+                                        emb_status.text(f"Generating embedding {chunk_idx + 1}/{total_chunks} for {item['symbol']}...")
+                                        
+                                        # Generate embedding
+                                        embedding = GeminiClient.generate_embedding(chunk)
+                                        # Store
+                                        SupabaseClient.create_embedding(
+                                            source_id=doc_id,
+                                            source_type="document",
+                                            content_chunk=chunk,
+                                            embedding=embedding,
+                                            authority_level=authority_level
+                                        )
+                                        embeddings_created += 1
+                                        
+                                        # Update progress
+                                        emb_progress.progress((chunk_idx + 1) / total_chunks)
+                                    
+                                    # Clear progress indicators
+                                    emb_progress.empty()
+                                    emb_status.empty()
+                                    
+                                    st.caption(f"✓ Stored {embeddings_created} embeddings for {item['symbol']}")
+                                except Exception as emb_err:
+                                    st.warning(f"Embedding storage failed for {item['symbol']}: {emb_err}")
                                 
                             success_count += 1
                             progress_save.progress((idx + 1) / len(to_save))

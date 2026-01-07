@@ -66,7 +66,12 @@ if user_query:
         with st.spinner("Searching documents..."):
             try:
                 # Search for relevant chunks with re-ranking (Increased limit for mixed results)
-                relevant_chunks = EmbeddingService.search_with_reranking(user_query, limit=10)
+                relevant_chunks = EmbeddingService.search_with_reranking(user_query, limit=15)
+                
+                # Debug: Show optimized query to user
+                from gemini_client import GeminiClient
+                optimized_q = GeminiClient.optimize_query(user_query)
+                st.caption(f"🔍 *Search keywords: {optimized_q[:100]}{'...' if len(optimized_q) > 100 else ''}*")
                 
                 if not relevant_chunks:
                     response = "I couldn't find any relevant documents to answer your question. Please try rephrasing or check if documents have been uploaded."

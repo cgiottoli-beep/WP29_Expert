@@ -21,10 +21,10 @@ class EmbeddingService:
         authority_level = 10 if doc_type in ['Report', 'Agenda'] else 1
         
         # Extract and chunk text
-        try:
-            chunks = PDFProcessor.extract_chunks(pdf_bytes, chunk_size=1000)
-        except Exception as e:
-            raise e
+        chunks = PDFProcessor.extract_chunks(pdf_bytes, chunk_size=1000)
+        
+        if not chunks:
+            return 0
         
         total_chunks = len(chunks)
         embeddings_created = 0
