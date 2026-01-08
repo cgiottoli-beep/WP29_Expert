@@ -30,15 +30,15 @@ def load_sessions_with_counts():
             return []
         
         # Get all working groups
-        groups_resp = client.table("working_groups").select("*").execute()
+        groups_resp = client.table("groups").select("*").execute()
         groups = {g['id']: g for g in groups_resp.data} if groups_resp.data else {}
         
         # Build sessions with counts
         sessions_with_counts = []
         for session in sessions_resp.data:
-            # Get group info
+            # Get group info - in groups table, 'id' is the code (GRE, WP.29, etc.)
             group = groups.get(session['group_id'], {})
-            parent_id = group.get('parent_id')
+            parent_id = group.get('parent_group_id')
             parent_group = groups.get(parent_id, {}) if parent_id else {}
             
             # Count documents for this session
@@ -49,10 +49,11 @@ def load_sessions_with_counts():
                 'session_id': session['id'],
                 'session_code': session['code'],
                 'year': session['year'],
-                'group_code': group.get('code', 'Unknown'),
-                'group_name': group.get('name', 'Unknown'),
+                'group_code': group.get('id', 'Unknown'),  # id IS the code
+                'group_name': group.get('full_name', 'Unknown'),
+                'group_type': group.get('type', 'Unknown'),  # GR, TF, IWG, etc.
                 'parent_id': parent_id,
-                'parent_code': parent_group.get('code'),
+                'parent_code': parent_group.get('id'),  # id IS the code
                 'doc_count': doc_count
             })
         
@@ -62,11 +63,17 @@ def load_sessions_with_counts():
         return []
 
 # Load data
-with st.spinner("Loading sessions..."):
-    sessions = load_sessions_with_counts()
+try:
+    with st.spinner("Loading sessions..."):
+        sessions = load_sessions_with_counts()
 
-if not sessions:
-    st.info("No sessions found. Create sessions in the Admin Structure page.")
+    if not sessions:
+        st.info("No sessions found. Create sessions in the Admin Structure page.")
+        st.stop()
+except Exception as e:
+    st.error(f"Error loading page: {e}")
+    import traceback
+    st.code(traceback.format_exc())
     st.stop()
 
 # ============================================================================
@@ -79,18 +86,19 @@ gr_sessions = []
 tf_iwg_sessions = []
 
 for s in sessions:
-    if s['group_code'] == 'WP.29':
+    # WP.29 can be stored as "WP.29" or "WP29" in the database
+    if s['group_code'] in ['WP.29', 'WP29']:
         wp29_sessions.append(s)
-    elif s['parent_id'] is None:
-        # Top-level groups (GR)
+    elif s['group_type'] == 'GR':
+        # GR - Working Groups (regardless of parent)
         gr_sessions.append(s)
     else:
-        # Sub-groups (TF/IWG)
+        # TF/IWG - Task Forces and Informal Working Groups
         tf_iwg_sessions.append(s)
 
-# Sort sessions within each group
+# Sort sessions within each group (newest first)
 def sort_sessions(sess_list):
-    return sorted(sess_list, key=lambda x: (-x['year'], x['session_code']))
+    return sorted(sess_list, key=lambda x: (-x['year'], -int(x['session_code']) if x['session_code'].isdigit() else x['session_code']))
 
 wp29_sessions = sort_sessions(wp29_sessions)
 gr_sessions = sort_sessions(gr_sessions)
