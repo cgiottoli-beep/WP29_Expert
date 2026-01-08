@@ -51,6 +51,7 @@ def load_sessions_with_counts():
                 'year': session['year'],
                 'group_code': group.get('id', 'Unknown'),  # id IS the code
                 'group_name': group.get('full_name', 'Unknown'),
+                'group_type': group.get('type', 'Unknown'),  # GR, TF, IWG, etc.
                 'parent_id': parent_id,
                 'parent_code': parent_group.get('id'),  # id IS the code
                 'doc_count': doc_count
@@ -88,16 +89,16 @@ for s in sessions:
     # WP.29 can be stored as "WP.29" or "WP29" in the database
     if s['group_code'] in ['WP.29', 'WP29']:
         wp29_sessions.append(s)
-    elif s['parent_id'] is None:
-        # Top-level groups (GR)
+    elif s['group_type'] == 'GR':
+        # GR - Working Groups (regardless of parent)
         gr_sessions.append(s)
     else:
-        # Sub-groups (TF/IWG)
+        # TF/IWG - Task Forces and Informal Working Groups
         tf_iwg_sessions.append(s)
 
-# Sort sessions within each group
+# Sort sessions within each group (newest first)
 def sort_sessions(sess_list):
-    return sorted(sess_list, key=lambda x: (-x['year'], x['session_code']))
+    return sorted(sess_list, key=lambda x: (-x['year'], -int(x['session_code']) if x['session_code'].isdigit() else x['session_code']))
 
 wp29_sessions = sort_sessions(wp29_sessions)
 gr_sessions = sort_sessions(gr_sessions)
