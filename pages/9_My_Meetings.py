@@ -112,7 +112,7 @@ with st.expander("🏛️ **WP.29**", expanded=True):
                     key=f"wp29_{s['session_id']}",
                     use_container_width=True
                 ):
-                    # Navigate to Search & Session page with filters
+                    # Navigate to Search and Session page with filters
                     st.session_state['filter_group_main'] = s['group_code']
                     st.session_state['filter_session_main'] = s['session_code']
                     st.session_state['filter_year_main'] = str(s['year'])
