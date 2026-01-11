@@ -97,8 +97,22 @@ for s in sessions:
         tf_iwg_sessions.append(s)
 
 # Sort sessions within each group (newest first)
+# Sort sessions within each group (newest first)
 def sort_sessions(sess_list):
-    return sorted(sess_list, key=lambda x: (-x['year'], -int(x['session_code']) if x['session_code'].isdigit() else x['session_code']))
+    # Sort key: 
+    # 1. Year (descending)
+    # 2. Type Priority (0 for numeric codes, 1 for string codes)
+    # 3. Numeric Value (descending) OR String Value (ascending)
+    def sort_key(x):
+        code = str(x['session_code'])
+        if code.isdigit():
+            # Priority 0: Numeric sessions (descending)
+            return (-x['year'], 0, -int(code))
+        else:
+            # Priority 1: String sessions (like "Literature")
+            return (-x['year'], 1, code)
+            
+    return sorted(sess_list, key=sort_key)
 
 wp29_sessions = sort_sessions(wp29_sessions)
 gr_sessions = sort_sessions(gr_sessions)
@@ -108,19 +122,64 @@ tf_iwg_sessions = sort_sessions(tf_iwg_sessions)
 # DISPLAY
 # ============================================================================
 
-# WP.29 Sessions
+# Helper to render grouped sections
+def render_grouped_section(title, sessions_list, expanded=False):
+    st.markdown(f"### {title}")
+    
+    if not sessions_list:
+        st.caption("No sessions found")
+        return
+
+    # Group by group_code
+    grouped = {}
+    for s in sessions_list:
+        code = s['group_code']
+        if code not in grouped:
+            grouped[code] = []
+        grouped[code].append(s)
+        
+    # Sort groups alphabetically
+    sorted_groups = sorted(grouped.keys())
+    
+    for g_code in sorted_groups:
+        group_sessions = grouped[g_code]
+        # Calculate total docs for group
+        total_group_docs = sum(s['doc_count'] for s in group_sessions)
+        
+        # Expander for the Group (TF/GR)
+        with st.expander(f"**{g_code}** ({len(group_sessions)} sessions, {total_group_docs} docs)", expanded=False):
+            for s in group_sessions:
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    # Determine display name based on context
+                    if s['session_code'] == 'Literature':
+                         display_name = f"{s['group_code']} - Literature Materials"
+                    else:
+                         display_name = f"{s['group_code']} - Session {s['session_code']} ({s['year']})"
+                    
+                    if s['doc_count'] > 0:
+                        display_name += f" - **{s['doc_count']} docs**"
+                    else:
+                        display_name += f" - {s['doc_count']} docs"
+
+                    if st.button(
+                        display_name,
+                        key=f"btn_{s['session_id']}",
+                        use_container_width=True
+                    ):
+                        st.session_state['filter_group_main'] = s['group_code']
+                        st.session_state['filter_session_main'] = s['session_code']
+                        st.session_state['filter_year_main'] = str(s['year'])
+                        st.switch_page("pages/4_Search_Session.py")
+
+# WP.29 Sessions (Keep as is or group? WP29 is usually just one group)
 with st.expander("🏛️ **WP.29**", expanded=True):
     if wp29_sessions:
         for s in wp29_sessions:
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                # Create link to Search and Session page with filters
-                if st.button(
-                    f"WP.29 - {s['session_code']} ({s['year']}) - **{s['doc_count']} documents**",
-                    key=f"wp29_{s['session_id']}",
-                    use_container_width=True
-                ):
-                    # Navigate to Search and Session page with filters
+             col1, col2 = st.columns([4, 1])
+             with col1:
+                display_name = f"WP.29 - {s['session_code']} ({s['year']}) - **{s['doc_count']} docs**"
+                if st.button(display_name, key=f"wp29_{s['session_id']}", use_container_width=True):
                     st.session_state['filter_group_main'] = s['group_code']
                     st.session_state['filter_session_main'] = s['session_code']
                     st.session_state['filter_year_main'] = str(s['year'])
@@ -128,42 +187,11 @@ with st.expander("🏛️ **WP.29**", expanded=True):
     else:
         st.caption("No WP.29 sessions found")
 
-# GR Sessions
-with st.expander("📊 **GR - Working Groups**", expanded=False):
-    if gr_sessions:
-        for s in gr_sessions:
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                if st.button(
-                    f"{s['group_code']} - {s['session_code']} ({s['year']}) - **{s['doc_count']} documents**",
-                    key=f"gr_{s['session_id']}",
-                    use_container_width=True
-                ):
-                    st.session_state['filter_group_main'] = s['group_code']
-                    st.session_state['filter_session_main'] = s['session_code']
-                    st.session_state['filter_year_main'] = str(s['year'])
-                    st.switch_page("pages/4_Search_Session.py")
-    else:
-        st.caption("No GR sessions found")
+# GR Sessions - Grouped
+render_grouped_section("📊 GR - Working Groups", gr_sessions)
 
-# TF/IWG Sessions
-with st.expander("🔬 **TF / IWG**", expanded=False):
-    if tf_iwg_sessions:
-        for s in tf_iwg_sessions:
-            parent_text = f" ({s['parent_code']})" if s['parent_code'] else ""
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                if st.button(
-                    f"{s['group_code']}{parent_text} - {s['session_code']} ({s['year']}) - **{s['doc_count']} documents**",
-                    key=f"tf_{s['session_id']}",
-                    use_container_width=True
-                ):
-                    st.session_state['filter_group_main'] = s['group_code']
-                    st.session_state['filter_session_main'] = s['session_code']
-                    st.session_state['filter_year_main'] = str(s['year'])
-                    st.switch_page("pages/4_Search_Session.py")
-    else:
-        st.caption("No TF/IWG sessions found")
+# TF/IWG Sessions - Grouped
+render_grouped_section("🔬 TF / IWG", tf_iwg_sessions)
 
 # Summary statistics
 st.divider()
