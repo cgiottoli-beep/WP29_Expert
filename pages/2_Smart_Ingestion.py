@@ -144,6 +144,7 @@ with tab1:
                 # PRE-GENERATE chunks immediately while bytes are fresh
                 chunks = []
                 try:
+                    chunks = PDFProcessor.extract_chunks(file_bytes, chunk_size=1000)
                     # Don't use status_box - it gets overwritten. Just store the count
                 except Exception as chunk_err:
                     # Store error for display later
