@@ -45,6 +45,17 @@ if 'bootstrapped' not in st.session_state:
 # Tabs
 tab1, tab2 = st.tabs(["📁 Groups", "📅 Sessions"])
 
+# Helper: Sort groups (WP29 -> GRs -> TF/IWGs)
+def get_group_sort_key(g):
+    # Priority 0: WP29
+    if g['id'].upper() == 'WP29':
+        return (0, g['id'])
+    # Priority 1: GRs
+    if g['type'] == 'GR':
+        return (1, g['id'])
+    # Priority 2: everything else (TF, IWG, etc.)
+    return (2, g['id'])
+
 # ============================================================================
 # TAB 1: GROUP MANAGEMENT
 # ============================================================================
@@ -64,6 +75,9 @@ with tab1:
             group_dict = {g['id']: g for g in groups}
             root_groups = [g for g in groups if g['parent_group_id'] is None]
             
+            # SORT ROOTS
+            root_groups.sort(key=get_group_sort_key)
+            
             def display_tree(group, level=0):
                 indent = "  " * level
                 icon = "📁" if group['type'] in ['WP', 'GR'] else "📂"
@@ -71,6 +85,10 @@ with tab1:
                 
                 # Find children
                 children = [g for g in groups if g.get('parent_group_id') == group['id']]
+                
+                # SORT CHILDREN
+                children.sort(key=get_group_sort_key)
+                
                 for child in children:
                     display_tree(child, level + 1)
             
@@ -95,7 +113,9 @@ with tab1:
     with col2:
         # Get parent options
         try:
-            parent_options = ["None (Root)"] + [g['id'] for g in SupabaseClient.get_all_groups()]
+            # Sort parent options too for nicer UX
+            all_groups_sorted = sorted(SupabaseClient.get_all_groups(), key=get_group_sort_key)
+            parent_options = ["None (Root)"] + [g['id'] for g in all_groups_sorted]
             selected_parent = st.selectbox("Parent Group", parent_options)
             parent_id = None if selected_parent == "None (Root)" else selected_parent
         except:
@@ -133,6 +153,9 @@ with tab2:
         if not groups:
             st.warning("Please create a group first")
         else:
+            # SORT GROUPS FOR DROPDOWN
+            groups.sort(key=get_group_sort_key)
+            
             selected_group = st.selectbox(
                 "Select Group",
                 options=[g['id'] for g in groups],
