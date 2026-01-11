@@ -71,6 +71,20 @@ with tab1:
         # Working Group
         try:
             groups = SupabaseClient.get_all_groups()
+            
+            # Helper: Sort groups (WP29 -> GRs -> TF/IWGs)
+            def get_group_sort_key(g):
+                # Priority 0: WP29
+                if g['id'].upper() == 'WP29':
+                    return (0, g['id'])
+                # Priority 1: GRs
+                if g['type'] == 'GR':
+                    return (1, g['id'])
+                # Priority 2: everything else (TF, IWG, etc.)
+                return (2, g['id'])
+            
+            groups.sort(key=get_group_sort_key)
+            
             group_options = {g['id']: f"{g['full_name']} ({g['type']})" for g in groups}
             selected_group_id = st.selectbox("Working Group", options=list(group_options.keys()), format_func=lambda x: group_options[x], key="doc_group_select")
         except Exception as e:
@@ -81,12 +95,12 @@ with tab1:
         # Session
         if selected_group_id:
             try:
-                sessions = SupabaseClient.get_sessions_by_group(selected_group_id)
+                sessions = SupabaseClient.get_sessions_with_doc_counts(selected_group_id)
                 sessions.sort(key=lambda s: (s['year'], s['code']), reverse=True)
                 if not sessions:
                     st.warning("No sessions found.")
                 else:
-                    session_options = {s['id']: f"{s['code']} ({s['year']})" for s in sessions}
+                    session_options = {s['id']: f"{s['code']} ({s['year']}) - {s.get('doc_count', 0)} docs" for s in sessions}
                     selected_session_id = st.selectbox("Session", options=list(session_options.keys()), format_func=lambda x: session_options[x], key="doc_session_select")
             except Exception as e:
                 st.error(f"Error loading sessions: {e}")

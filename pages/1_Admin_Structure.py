@@ -79,9 +79,21 @@ with tab1:
             root_groups.sort(key=get_group_sort_key)
             
             def display_tree(group, level=0):
-                indent = "  " * level
+                # Use non-breaking spaces for visible indentation in Streamlit
+                # level 0: ""
+                # level 1: "&nbsp;&nbsp;&nbsp;&nbsp;↳ "
+                # level 2: "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↳ "
+                if level == 0:
+                    indent_str = ""
+                    prefix = ""
+                else:
+                    indent_str = "&nbsp;&nbsp;&nbsp;&nbsp;" * level
+                    prefix = "↳ "
+                
                 icon = "📁" if group['type'] in ['WP', 'GR'] else "📂"
-                st.markdown(f"{indent}{icon} **{group['id']}** - {group['full_name']} ({group['type']})")
+                
+                # Render using HTML to ensure spaces are respected
+                st.markdown(f"{indent_str}{prefix}{icon} **{group['id']}** - {group['full_name']} ({group['type']})", unsafe_allow_html=True)
                 
                 # Find children
                 children = [g for g in groups if g.get('parent_group_id') == group['id']]

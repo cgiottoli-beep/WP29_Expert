@@ -132,23 +132,22 @@ try:
         ids_nodes.append(nid)
         
         # Label and color
+        # Label and color
         if nid == 'WP29':
             text_nodes.append("<b>WP.29</b>")
-            color_nodes.append('#667eea') # Purple
-        elif nid in groups_by_id and not groups_by_id[nid].get('parent_group_id'):
-             # Root level but not WP29? Or direct children of WP29?
-             # Actually check relationship:
-             pp = groups_by_id[nid].get('parent_group_id')
-             if pp == 'WP29' or nid == start_node:
-                 if nid != start_node:
-                     color_nodes.append('#f093fb') # Pink (Groups)
-                 else:
-                     color_nodes.append('#667eea') # Root
-                 text_nodes.append(f"<b>{nid}</b>")
+            color_nodes.append('#667eea') # Level 1: Purple
         else:
-            # TFs / Children
-            text_nodes.append(nid.replace('TF ', 'TF<br>')) 
-            color_nodes.append('#4facfe') # Blue
+            # Check parent to determine level
+            parent_id = groups_by_id[nid].get('parent_group_id')
+            
+            if parent_id == 'WP29' or (not parent_id and nid == start_node):
+                 # Level 2: Direct children of WP29 (GRs)
+                 color_nodes.append('#f093fb') # Level 2: Pink
+                 text_nodes.append(f"<b>{nid}</b>")
+            else:
+                # Level 3: Children of GRs (TFs)
+                color_nodes.append('#4facfe') # Level 3: Blue
+                text_nodes.append(nid.replace('TF ', 'TF<br>'))
         
         # Ensure color is set if missed
         if len(color_nodes) < len(x_nodes):
@@ -181,11 +180,17 @@ try:
         mode='markers+text',
         text=text_nodes,
         textposition="middle center",
+        textfont=dict(
+            family="Arial, sans-serif",
+            size=14,
+            color="white",  # High contrast
+            weight="bold"   # Better readability
+        ),
         marker=dict(
             symbol='square',
-            size=60, 
+            size=100,       # Larger boxes
             color=color_nodes,
-            line=dict(color='white', width=1)
+            line=dict(color='white', width=2)
         ),
         hoverinfo='text',
         hovertext=[groups_by_id[Id].get('description', Id) for Id in ids_nodes],

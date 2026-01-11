@@ -27,6 +27,10 @@ class Config:
     GEMINI_PRO_MODEL = "models/gemini-2.5-pro"
     GEMINI_EMBEDDING_MODEL = "models/embedding-001"
     
+    # App Version
+    APP_VERSION = "1.0.0"
+    APP_DATE = "2026-01-11"
+    
     @classmethod
     def validate(cls):
         """Validate that all required configuration is present"""

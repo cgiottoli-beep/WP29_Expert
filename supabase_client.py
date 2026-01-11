@@ -64,6 +64,44 @@ class SupabaseClient:
         client = SupabaseClient.get_client()
         response = client.table("sessions").select("*").eq("group_id", group_id).execute()
         return response.data
+
+    @staticmethod
+    def get_sessions_with_doc_counts(group_id: str) -> List[Dict]:
+        """Get all sessions for a group with document counts"""
+        client = SupabaseClient.get_client()
+        
+        # 1. Get sessions
+        sessions = SupabaseClient.get_sessions_by_group(group_id)
+        if not sessions:
+            return []
+            
+        # 2. Get document counts for these sessions
+        # We fetch only session_id for all docs in these sessions to count them
+        session_ids = [s['id'] for s in sessions]
+        
+        try:
+            # Fetch all docs that belong to these sessions
+            # Selecting only session_id to minimize data transfer
+            docs_response = client.table("documents") \
+                .select("session_id") \
+                .in_("session_id", session_ids) \
+                .execute()
+            
+            # Count occurrences
+            from collections import Counter
+            doc_counts = Counter(doc['session_id'] for doc in docs_response.data)
+            
+            # Add count to session objects
+            for session in sessions:
+                session['doc_count'] = doc_counts.get(session['id'], 0)
+                
+        except Exception as e:
+            print(f"Error counting documents: {e}")
+            # Fallback: set count to 0 or leave undefined
+            for session in sessions:
+                session['doc_count'] = 0
+                
+        return sessions
     
     @staticmethod
     def create_session(group_id: str, code: str, year: int, 

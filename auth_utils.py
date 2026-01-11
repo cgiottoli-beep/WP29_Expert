@@ -6,6 +6,7 @@ import streamlit as st
 import time
 import datetime
 from supabase_client import SupabaseClient
+from config import Config
 
 import extra_streamlit_components as stx
 
@@ -186,7 +187,10 @@ def render_sidebar():
             st.page_link("pages/99_Debug_Keys.py", label="Debug Keys 🐞", icon="🐞")
 
             # End of Sidebar
-            pass
+            # End of Sidebar
+            st.markdown("---")
+            st.markdown(f"**App Version:** `{Config.APP_VERSION}`")
+            st.caption(f"Date: {Config.APP_DATE}")
 
 # Update Login Logic to set cookie
 def login_form():
