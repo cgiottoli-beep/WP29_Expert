@@ -123,7 +123,8 @@ with tab1:
                 
                 # Auto-detect Doc Type - MUST match DB constraint
                 # Valid values: Report, Agenda, Adopted Proposals, Formal, Informal
-                ai_type = meta.get('doc_type', 'Formal').lower()
+                doc_type_val = meta.get('doc_type') or 'Formal'
+                ai_type = doc_type_val.lower()
                 
                 if 'report' in ai_type:
                     norm_type = "Report"
@@ -138,13 +139,11 @@ with tab1:
                     norm_type = "Formal"
                 
                 # Auto-detect Regulation ID
-                ai_regs = meta.get('mentioned_regulations', [])
+                ai_regs = meta.get('mentioned_regulations') or []
                 
                 # PRE-GENERATE chunks immediately while bytes are fresh
                 chunks = []
                 try:
-                    from pdf_processor import PDFProcessor
-                    chunks = PDFProcessor.extract_chunks(file_bytes, chunk_size=1000)
                     # Don't use status_box - it gets overwritten. Just store the count
                 except Exception as chunk_err:
                     # Store error for display later
@@ -155,9 +154,9 @@ with tab1:
                     "file_name": file.name,
                     "file_bytes": bytes(file_bytes),  # For upload
                     "pre_chunks": chunks,  # For embedding (already extracted)
-                    "symbol": meta.get('symbol', ''),
-                    "title": meta.get('title', ''),
-                    "author": meta.get('author', 'Unknown'),
+                    "symbol": meta.get('symbol') or '',
+                    "title": meta.get('title') or '',
+                    "author": meta.get('author') or 'Unknown',
                     "doc_type": norm_type,
                     "regulations": ", ".join(ai_regs) if ai_regs else "",
                     "date": datetime.now().date(),
@@ -229,7 +228,9 @@ with tab1:
                             
                             # Step 1: Sanitize filename and upload
                             import re
-                            safe_symbol = re.sub(r'[/\\:*?"<>|]', '-', item['symbol'])
+                            # Ensure symbol is string, fallback to 'Unknown' if empty
+                            clean_symbol = str(item['symbol'] or 'Unknown')
+                            safe_symbol = re.sub(r'[/\\:*?"<>|]', '-', clean_symbol)
                             path = f"documents/{safe_symbol}.pdf"
                             
                             # Step 2: Upload to Supabase Storage

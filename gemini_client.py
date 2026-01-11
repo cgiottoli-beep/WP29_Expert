@@ -198,16 +198,17 @@ CRITICAL RULES:
 1. Output ONLY keywords and technical terms, separated by spaces.
 2. DO NOT output full sentences or questions.
 3. Include English translations of any non-English terms.
-4. Include German translations for common automotive terms (for German documents).
-5. Include synonyms and related technical terms.
-6. For regulatory topics, include regulation numbers if implied (e.g., "headlamps" -> include "R48").
+4. Include German conceptual translations for specific automotive terms (e.g. "Single Vehicle Approval" -> "Einzelgenehmigung").
+5. Include Spanish technical terms if relevant to the query context.
+6. TARGET LANGUAGES: English, German, Italian, Spanish.
+
 
 EXAMPLES:
 - "che documenti trovi sui loghi?" -> "logo logos trademark brand Marke Warenzeichen manufacturer marking"
 - "omologazione individuale" -> "individual approval Einzelgenehmigung type-approval IVA"
 - "pedestrian protection requirements" -> "pedestrian protection Fußgängerschutz bumper front end R127"
+- "luces de carretera" -> "driving beam headlamp fernlicht R48 R112"
 - "documenti della sessione 91 del GRE" -> "GRE session 91 GRE-91"
-- "proposta italiana sui fari" -> "Italy Italian headlamp headlight R48 R123 proposal"
 
 User Query: "{query}"
 Keywords:
