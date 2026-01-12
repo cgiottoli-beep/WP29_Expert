@@ -400,7 +400,13 @@ try:
                 with cols[3]:
                     st.markdown(get_type_badge(doc.get('doc_type')), unsafe_allow_html=True)
                 with cols[4]:
-                    st.markdown(doc['author'])
+                    # Session Info
+                    sess = doc.get('sessions', {})
+                    if sess:
+                        sess_text = f"**{sess.get('group_id', '')} {sess.get('code', '')}**<br><span style='font-size:0.8em; color:gray'>{sess.get('year', '')}</span>"
+                        st.markdown(sess_text, unsafe_allow_html=True)
+                    else:
+                        st.markdown(doc.get('author', '-'))
                 with cols[5]:
                     reg_mentioned = doc.get('regulation_mentioned', '-')
                     st.markdown(f"`{reg_mentioned}`" if reg_mentioned else "-")
@@ -635,7 +641,14 @@ try:
                 with cols[3]:
                     st.markdown(get_type_badge(doc.get('doc_type')), unsafe_allow_html=True)
                 with cols[4]:
-                    st.markdown(doc['author'])
+                    # Session Info
+                    sess = doc.get('sessions', {})
+                    if sess:
+                        # Re-use same formatting
+                        sess_text = f"**{sess.get('group_id', '')} {sess.get('code', '')}**<br><span style='font-size:0.8em; color:gray'>{sess.get('year', '')}</span>"
+                        st.markdown(sess_text, unsafe_allow_html=True)
+                    else:
+                        st.markdown(doc['author'])
                 with cols[5]:
                     reg_mentioned = doc.get('regulation_mentioned', '-')
                     st.markdown(f"`{reg_mentioned}`" if reg_mentioned else "-")
