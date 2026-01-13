@@ -336,8 +336,98 @@ try:
         
         
         if reports_agendas:
-            st.markdown("### 📋 Outcomes & Agenda")
-            st.markdown("*Session reports and agendas (high authority)*")
+            # Initialize selection state
+            if 'selected_reports' not in st.session_state:
+                st.session_state.selected_reports = set()
+            
+            # Header with Delete buttons
+            col_header, col_delete_selected, col_delete_all = st.columns([2, 1, 1])
+            with col_header:
+                st.markdown("### 📋 Outcomes & Agenda")
+                st.markdown("*Session reports and agendas (high authority)*")
+            with col_delete_selected:
+                selected_count = len(st.session_state.selected_reports)
+                if st.button(f"🗑️ Delete Selected ({selected_count})", type="secondary", disabled=selected_count == 0, help="Delete checked documents", key="del_sel_reports"):
+                    st.session_state.confirm_delete_selected_reports = True
+            with col_delete_all:
+                if st.button("🗑️ Delete All Reports", type="secondary", help="Delete all reports/agendas in view", key="del_all_reports"):
+                    st.session_state.confirm_delete_all_reports = True
+            
+            # Delete Selected Confirmation
+            if st.session_state.get('confirm_delete_selected_reports'):
+                selected_docs = [d for d in reports_agendas if d['id'] in st.session_state.selected_reports]
+                st.error(f"⚠️ **WARNING:** This will permanently delete {len(selected_docs)} selected reports/agendas!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ YES, DELETE SELECTED", type="primary", use_container_width=True, key="confirm_del_sel_rep"):
+                        try:
+                            client = SupabaseClient.get_client()
+                            deleted_count = 0
+                            failed_files = []
+                            
+                            for doc in selected_docs:
+                                if doc.get('file_url'):
+                                    try:
+                                        file_path = doc['file_url'].split('/unece-archive/')[-1]
+                                        client.storage.from_(Config.STORAGE_BUCKET).remove([file_path])
+                                    except Exception as e:
+                                        failed_files.append(f"{doc['symbol']}: {str(e)}")
+                                
+                                client.table("documents").delete().eq("id", doc['id']).execute()
+                                deleted_count += 1
+                            
+                            if failed_files:
+                                st.warning(f"⚠️ Deleted {deleted_count} documents but {len(failed_files)} files couldn't be removed")
+                            else:
+                                st.success(f"✅ Deleted {deleted_count} selected reports/agendas")
+                            
+                            st.session_state.selected_reports = set()
+                            del st.session_state.confirm_delete_selected_reports
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error during deletion: {e}")
+                with col2:
+                    if st.button("❌ Cancel", use_container_width=True, key="cancel_del_sel_rep"):
+                        del st.session_state.confirm_delete_selected_reports
+                        st.rerun()
+                st.markdown("---")
+            
+            # Delete All Confirmation
+            if st.session_state.get('confirm_delete_all_reports'):
+                st.error(f"⚠️ **WARNING:** This will permanently delete ALL {len(reports_agendas)} reports/agendas!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ YES, DELETE ALL", type="primary", use_container_width=True, key="confirm_del_all_rep"):
+                        try:
+                            client = SupabaseClient.get_client()
+                            deleted_count = 0
+                            failed_files = []
+                            
+                            for doc in reports_agendas:
+                                if doc.get('file_url'):
+                                    try:
+                                        file_path = doc['file_url'].split('/unece-archive/')[-1]
+                                        client.storage.from_(Config.STORAGE_BUCKET).remove([file_path])
+                                    except Exception as e:
+                                        failed_files.append(f"{doc['symbol']}: {str(e)}")
+                                
+                                client.table("documents").delete().eq("id", doc['id']).execute()
+                                deleted_count += 1
+                            
+                            if failed_files:
+                                st.warning(f"⚠️ Deleted {deleted_count} documents but {len(failed_files)} files couldn't be removed")
+                            else:
+                                st.success(f"✅ Deleted {deleted_count} reports/agendas")
+                            
+                            del st.session_state.confirm_delete_all_reports
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error during bulk deletion: {e}")
+                with col2:
+                    if st.button("❌ Cancel", use_container_width=True, key="cancel_del_all_rep"):
+                        del st.session_state.confirm_delete_all_reports
+                        st.rerun()
+                st.markdown("---")
             
             # Edit Dialog for Reports... (omitted)
             if st.session_state.get('editing_report_id'):
@@ -349,11 +439,24 @@ try:
             
              # Display Reports/Agendas with action buttons
             for idx, doc in enumerate(reports_agendas):
-                # Adjusted columns: Wider Symbol (2.5), Smaller Actions (0.8)
-                cols = st.columns([0.4, 2.5, 3, 0.8, 1.2, 1, 0.8])
+                # Adjusted columns: Checkbox (0.3), Status (0.4), Symbol (2.5), etc.
+                cols = st.columns([0.3, 0.4, 2.5, 3, 0.8, 1.2, 1, 0.8])
+                
+                # Checkbox Column
+                with cols[0]:
+                    is_selected = st.checkbox(
+                        "",
+                        value=doc['id'] in st.session_state.selected_reports,
+                        key=f"cb_rep_{idx}",
+                        label_visibility="collapsed"
+                    )
+                    if is_selected:
+                        st.session_state.selected_reports.add(doc['id'])
+                    else:
+                        st.session_state.selected_reports.discard(doc['id'])
                 
                 # Status Column
-                with cols[0]:
+                with cols[1]:
                     count = embedding_counts.get(doc['id'], 0)
                     if count > 0:
                         # Compact badge style
@@ -386,20 +489,20 @@ try:
                             except Exception as e:
                                 st.error(f"❌ Error: {str(e)}")
 
-                with cols[1]:
-                    # CLickable Symbol
+                with cols[2]:
+                    # Clickable Symbol
                     if doc.get('file_url'):
                         url = get_viewable_url(doc['file_url'])
                         st.markdown(f"[{doc['symbol']}]({url})")
                     else:
                         st.markdown(f"**{doc['symbol']}**")
                 
-                with cols[2]:
+                with cols[3]:
                     title_display = doc['title'][:60] + ("..." if len(doc['title']) > 60 else "")
                     st.markdown(title_display)
-                with cols[3]:
-                    st.markdown(get_type_badge(doc.get('doc_type')), unsafe_allow_html=True)
                 with cols[4]:
+                    st.markdown(get_type_badge(doc.get('doc_type')), unsafe_allow_html=True)
+                with cols[5]:
                     # Session Info
                     sess = doc.get('sessions', {})
                     if sess:
@@ -407,10 +510,10 @@ try:
                         st.markdown(sess_text, unsafe_allow_html=True)
                     else:
                         st.markdown(doc.get('author', '-'))
-                with cols[5]:
+                with cols[6]:
                     reg_mentioned = doc.get('regulation_mentioned', '-')
                     st.markdown(f"`{reg_mentioned}`" if reg_mentioned else "-")
-                with cols[6]:
+                with cols[7]:
                     # Actions: Just Edit and Delete
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
@@ -430,14 +533,63 @@ try:
         # ====================================================================
         
         if working_docs:
-            # Header with Delete All button
-            col_header, col_delete_all = st.columns([3, 1])
+            # Initialize selection state
+            if 'selected_docs' not in st.session_state:
+                st.session_state.selected_docs = set()
+            
+            # Header with Delete buttons
+            col_header, col_delete_selected, col_delete_all = st.columns([2, 1, 1])
             with col_header:
                 st.markdown("### 📄 Working Documents")
                 st.markdown("*Formal and informal proposals*")
+            with col_delete_selected:
+                selected_count = len(st.session_state.selected_docs)
+                if st.button(f"🗑️ Delete Selected ({selected_count})", type="secondary", disabled=selected_count == 0, help="Delete checked documents"):
+                    st.session_state.confirm_delete_selected = True
             with col_delete_all:
                 if st.button("🗑️ Delete All Documents", type="secondary", help="Delete all documents in current view"):
                     st.session_state.confirm_delete_all = True
+            
+            # Delete Selected Confirmation
+            if st.session_state.get('confirm_delete_selected'):
+                selected_docs = [d for d in working_docs if d['id'] in st.session_state.selected_docs]
+                st.error(f"⚠️ **WARNING:** This will permanently delete {len(selected_docs)} selected documents!")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ YES, DELETE SELECTED", type="primary", use_container_width=True, key="confirm_delete_sel"):
+                        try:
+                            client = SupabaseClient.get_client()
+                            deleted_count = 0
+                            failed_files = []
+                            
+                            for doc in selected_docs:
+                                # Delete PDF file from storage first if exists
+                                if doc.get('file_url'):
+                                    try:
+                                        file_path = doc['file_url'].split('/unece-archive/')[-1]
+                                        client.storage.from_(Config.STORAGE_BUCKET).remove([file_path])
+                                    except Exception as e:
+                                        failed_files.append(f"{doc['symbol']}: {str(e)}")
+                                
+                                # Delete from database
+                                client.table("documents").delete().eq("id", doc['id']).execute()
+                                deleted_count += 1
+                            
+                            if failed_files:
+                                st.warning(f"⚠️ Deleted {deleted_count} documents but {len(failed_files)} files couldn't be removed from storage")
+                            else:
+                                st.success(f"✅ Deleted {deleted_count} selected documents and files")
+                            
+                            st.session_state.selected_docs = set()
+                            del st.session_state.confirm_delete_selected
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error during deletion: {e}")
+                with col2:
+                    if st.button("❌ Cancel", use_container_width=True, key="cancel_delete_sel"):
+                        del st.session_state.confirm_delete_selected
+                        st.rerun()
+                st.markdown("---")
             
             # Delete All Confirmation
             if st.session_state.get('confirm_delete_all'):
@@ -591,11 +743,24 @@ try:
             
             # Documents List with Action Buttons
             for idx, doc in enumerate(working_docs):
-                # Adjusted columns: Wider Symbol (2.5), Smaller Actions (0.8)
-                cols = st.columns([0.4, 2.5, 3, 0.8, 1.2, 1, 0.8])
+                # Adjusted columns: Checkbox (0.3), Status (0.4), Symbol (2.5), etc.
+                cols = st.columns([0.3, 0.4, 2.5, 3, 0.8, 1.2, 1, 0.8])
+                
+                # Checkbox Column
+                with cols[0]:
+                    is_selected = st.checkbox(
+                        "",
+                        value=doc['id'] in st.session_state.selected_docs,
+                        key=f"cb_doc_{idx}",
+                        label_visibility="collapsed"
+                    )
+                    if is_selected:
+                        st.session_state.selected_docs.add(doc['id'])
+                    else:
+                        st.session_state.selected_docs.discard(doc['id'])
                 
                 # Status Column
-                with cols[0]:
+                with cols[1]:
                     count = embedding_counts.get(doc['id'], 0)
                     if count > 0:
                         st.markdown(f"<span style='background-color:#e6fffa; color:#047857; padding:2px 6px; border-radius:10px; font-size:0.8em; font-weight:bold;'>{count}</span>", unsafe_allow_html=True)
@@ -627,7 +792,7 @@ try:
                             except Exception as e:
                                 st.error(f"❌ Error: {str(e)}")
 
-                with cols[1]:
+                with cols[2]:
                     # Clickable Symbol
                     if doc.get('file_url'):
                         url = get_viewable_url(doc['file_url'])
@@ -635,12 +800,12 @@ try:
                     else:
                         st.markdown(f"**{doc['symbol']}**")
                 
-                with cols[2]:
+                with cols[3]:
                     title_display = doc['title'][:60] + ("..." if len(doc['title']) > 60 else "")
                     st.markdown(title_display)
-                with cols[3]:
-                    st.markdown(get_type_badge(doc.get('doc_type')), unsafe_allow_html=True)
                 with cols[4]:
+                    st.markdown(get_type_badge(doc.get('doc_type')), unsafe_allow_html=True)
+                with cols[5]:
                     # Session Info
                     sess = doc.get('sessions', {})
                     if sess:
@@ -649,10 +814,10 @@ try:
                         st.markdown(sess_text, unsafe_allow_html=True)
                     else:
                         st.markdown(doc['author'])
-                with cols[5]:
+                with cols[6]:
                     reg_mentioned = doc.get('regulation_mentioned', '-')
                     st.markdown(f"`{reg_mentioned}`" if reg_mentioned else "-")
-                with cols[6]:
+                with cols[7]:
                     # Actions: Just Edit and Delete
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
