@@ -44,14 +44,28 @@ class EmbeddingService:
                 print(f"Error generating embedding API call: {e}")
                 continue
             
-            # Store in database
+            # NEW: Upload chunk to Storage instead of saving in DB
             try:
+                # Create JSON payload
+                chunk_data = {
+                    "text": chunk,
+                    "source_id": document_id,
+                    "source_type": "document",
+                    "chunk_index": i,
+                    "authority_level": authority_level
+                }
+                
+                # Upload to chunks_cache bucket
+                storage_path = f"{document_id}/chunk_{i}.json"
+                SupabaseClient.upload_json(storage_path, chunk_data)
+                
+                # Store embedding in DB with path reference
                 SupabaseClient.create_embedding(
                     source_id=document_id,
                     source_type="document",
-                    content_chunk=chunk,
                     embedding=embedding,
-                    authority_level=authority_level
+                    authority_level=authority_level,
+                    content_path=storage_path
                 )
                 embeddings_created += 1
             except Exception as e:
@@ -69,19 +83,33 @@ class EmbeddingService:
         chunks = PDFProcessor.extract_chunks(pdf_bytes, chunk_size=1000)
         
         embeddings_created = 0
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
             if not chunk.strip():
                 continue
             
             embedding = GeminiClient.generate_embedding(chunk)
             
             try:
+                # Create JSON payload
+                chunk_data = {
+                    "text": chunk,
+                    "source_id": regulation_version_id,
+                    "source_type": "regulation",
+                    "chunk_index": i,
+                    "authority_level": 10
+                }
+                
+                # Upload to chunks_cache bucket
+                storage_path = f"{regulation_version_id}/chunk_{i}.json"
+                SupabaseClient.upload_json(storage_path, chunk_data)
+                
+                # Store embedding in DB with path reference
                 SupabaseClient.create_embedding(
                     source_id=regulation_version_id,
                     source_type="regulation",
-                    content_chunk=chunk,
                     embedding=embedding,
-                    authority_level=10  # Regulations have highest authority
+                    authority_level=10,  # Regulations have highest authority
+                    content_path=storage_path
                 )
                 embeddings_created += 1
             except Exception as e:
@@ -112,15 +140,60 @@ class EmbeddingService:
         # Fetch more candidates to allow for effective re-ranking
         results = EmbeddingService._vector_search(query_embedding, limit * 5)
         
+        # NEW: Fetch chunk content from Storage for results that don't have it in DB
+        results_with_content = EmbeddingService._populate_chunk_content(results)
+        
         # Re-rank by authority level (higher authority first)
         # Then by similarity score
         ranked_results = sorted(
-            results,
+            results_with_content,
             key=lambda x: (x.get('authority_level', 0), x.get('similarity', 0)),
             reverse=True
         )
         
         return ranked_results[:limit]
+    
+    @staticmethod
+    def _populate_chunk_content(results: List[Dict]) -> List[Dict]:
+        """
+        Populate content_chunk field from Storage for results that need it.
+        Uses parallel fetching for performance.
+        
+        Args:
+            results: List of search results with content_path or content_chunk
+            
+        Returns:
+            Results with content_chunk populated
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        # Identify which results need content fetching
+        to_fetch = []
+        for result in results:
+            # If content_chunk is missing but content_path exists, we need to fetch
+            if not result.get('content_chunk') and result.get('content_path'):
+                to_fetch.append(result)
+        
+        # Fetch in parallel if needed
+        if to_fetch:
+            def fetch_content(result: Dict) -> Dict:
+                """Fetch content from Storage for a single result"""
+                try:
+                    chunk_data = SupabaseClient.download_json(result['content_path'])
+                    result['content_chunk'] = chunk_data.get('text', '')
+                except Exception as e:
+                    print(f"Error fetching chunk from storage: {e}")
+                    result['content_chunk'] = f"[Error loading content: {e}]"
+                return result
+            
+            # Use ThreadPoolExecutor for parallel downloads (max 10 concurrent)
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_result = {executor.submit(fetch_content, r): r for r in to_fetch}
+                for future in as_completed(future_to_result):
+                    # Results are updated in-place, just wait for completion
+                    future.result()
+        
+        return results
     
     @staticmethod
     def generate_interpretation_embeddings(interpretation_id: str, 
@@ -168,12 +241,26 @@ class EmbeddingService:
             try:
                 embedding = GeminiClient.generate_embedding(chunk)
                 
+                # Create JSON payload
+                chunk_data = {
+                    "text": chunk,
+                    "source_id": interpretation_id,
+                    "source_type": "interpretation",
+                    "chunk_index": i,
+                    "authority_level": 12
+                }
+                
+                # Upload to chunks_cache bucket
+                storage_path = f"{interpretation_id}/chunk_{i}.json"
+                SupabaseClient.upload_json(storage_path, chunk_data)
+                
+                # Store embedding in DB with path reference
                 SupabaseClient.create_embedding(
                     source_id=interpretation_id,
                     source_type="interpretation",
-                    content_chunk=chunk,
                     embedding=embedding,
-                    authority_level=12 # Higher than Regulation (10) to prioritize interpretations
+                    authority_level=12,  # Higher than Regulation (10) to prioritize interpretations
+                    content_path=storage_path
                 )
                 embeddings_created += 1
             except Exception as e:

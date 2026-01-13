@@ -21,6 +21,7 @@ class Config:
     
     # Storage
     STORAGE_BUCKET = "unece-archive"
+    CHUNKS_CACHE_BUCKET = "chunks_cache"  # For storing chunk JSON files
     
     # AI Models (Gemini 2.x)
     GEMINI_FLASH_MODEL = "models/gemini-2.0-flash"
@@ -28,8 +29,8 @@ class Config:
     GEMINI_EMBEDDING_MODEL = "models/embedding-001"
     
     # App Version
-    APP_VERSION = "1.0.0"
-    APP_DATE = "2026-01-11"
+    APP_VERSION = "1.1.0"
+    APP_DATE = "2026-01-13"
     
     @classmethod
     def validate(cls):

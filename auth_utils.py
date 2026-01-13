@@ -166,6 +166,7 @@ def render_sidebar():
         # Authenticated Users Only
         if st.session_state.get('authenticated'):
             st.page_link("pages/4_Search_Session.py", label="Search Documents", icon="🔍")
+            st.page_link("pages/5_Adopted_Proposals.py", label="Adopted Proposals", icon="📜")
             st.page_link("pages/3_Regulation_Library.py", label="Regulations", icon="📚")
             st.page_link("pages/3_Interpretation_Library.py", label="Interpretations", icon="💡")
             st.page_link("pages/5_AI_Assistant.py", label="AI Assistant", icon="🤖")

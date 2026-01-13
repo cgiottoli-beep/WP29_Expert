@@ -321,19 +321,37 @@ class SupabaseClient:
     # =========================================================================
     
     @staticmethod
-    def create_embedding(source_id: str, source_type: str, content_chunk: str,
-                        embedding: List[float], authority_level: int) -> Dict:
-        """Create an embedding record"""
+    def create_embedding(source_id: str, source_type: str, 
+                        embedding: List[float], authority_level: int,
+                        content_chunk: Optional[str] = None,
+                        content_path: Optional[str] = None) -> Dict:
+        """Create an embedding record
+        
+        Args:
+            source_id: ID of the source document/regulation/interpretation
+            source_type: Type of source ('document', 'regulation', 'interpretation')
+            embedding: The embedding vector
+            authority_level: Authority level for ranking
+            content_chunk: (Optional) Legacy text content stored in DB
+            content_path: (Optional) Path to JSON file in chunks_cache bucket
+        """
         client = SupabaseClient.get_client()
         data = {
             "source_id": source_id,
             "source_type": source_type,
-            "content_chunk": content_chunk,
             "embedding": embedding,
             "authority_level": authority_level
         }
+        
+        # Add optional fields if provided
+        if content_chunk is not None:
+            data["content_chunk"] = content_chunk
+        if content_path is not None:
+            data["content_path"] = content_path
+            
         response = client.table("embeddings").insert(data).execute()
         return response.data[0] if response.data else {}
+    
     
     @staticmethod
     def search_embeddings(query_embedding: List[float], limit: int = 10) -> List[Dict]:
@@ -444,6 +462,58 @@ class SupabaseClient:
         except Exception:
             # Fallback to public URL if signed URL fails
             return file_url
+    
+    @staticmethod
+    def upload_json(file_path: str, json_data: Dict) -> str:
+        """Upload JSON data to chunks_cache bucket
+        
+        Args:
+            file_path: Path within bucket (e.g., "document_id/chunk_0.json")
+            json_data: Dictionary to store as JSON
+            
+        Returns:
+            Storage path (not full URL, just the path within bucket)
+        """
+        import json
+        client = SupabaseClient.get_client()
+        
+        json_bytes = json.dumps(json_data, ensure_ascii=False).encode('utf-8')
+        
+        try:
+            client.storage.from_(Config.CHUNKS_CACHE_BUCKET).upload(
+                file_path,
+                json_bytes,
+                file_options={
+                    "content-type": "application/json",
+                    "cache-control": "public, max-age=86400",
+                    "upsert": "true"
+                }
+            )
+            return file_path
+        except Exception as e:
+            print(f"Error uploading JSON to storage: {e}")
+            raise
+    
+    @staticmethod
+    def download_json(file_path: str) -> Dict:
+        """Download JSON data from chunks_cache bucket
+        
+        Args:
+            file_path: Path within bucket (e.g., "document_id/chunk_0.json")
+            
+        Returns:
+            Parsed JSON dictionary
+        """
+        import json
+        client = SupabaseClient.get_client()
+        
+        try:
+            response = client.storage.from_(Config.CHUNKS_CACHE_BUCKET).download(file_path)
+            return json.loads(response)
+        except Exception as e:
+            print(f"Error downloading JSON from storage: {e}")
+            raise
+    
     # =========================================================================
     # INTERPRETATIONS & ISSUERS
     # =========================================================================

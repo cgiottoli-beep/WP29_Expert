@@ -25,6 +25,34 @@
 
 ---
 
+All notable changes to the UNECE WP.29 Archive project will be documented in this file.
+
+## [1.1.0] - 2026-01-13
+
+### Added
+- **Adopted Proposals Management**: New page for tracking adopted proposals from WP.29/GR sessions
+  - Upload and parse adopted proposals documents
+  - Extract regulation references and proposal metadata
+  - Link proposals to sessions and regulations
+  - Track adoption status and implementation dates
+- **RAG Storage Optimization**: Refactored chunk storage architecture
+  - Moved chunk text from PostgreSQL to Supabase Storage
+  - Reduced database footprint by ~75% for better scalability
+  - Added parallel fetching for chunk retrieval
+  - Implemented hybrid hot/cold storage strategy
+  - Created migration scripts for existing data
+
+### Changed
+- Updated `embeddings` table schema with `content_path` column
+- Modified ingestion logic to store chunks as JSON in Storage
+- Enhanced retrieval logic with ThreadPoolExecutor for parallel downloads
+
+### Technical
+- Added `chunks_cache` Storage bucket
+- Created migration script `migrate_chunks_to_storage.py`
+- Added `weaviate_client.py` for future vector database scaling
+- Updated config with `CHUNKS_CACHE_BUCKET` constant
+
 ## Future Versions
 
 Future releases will be documented here.
