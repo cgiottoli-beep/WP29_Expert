@@ -76,7 +76,7 @@ jobs:
         if: steps.bump_type.outputs.bump != 'none'
         id: get_version
         run: |
-          VERSION=$(python -c "from config import Config; print(Config.APP_VERSION)")
+          VERSION=$(grep -oP 'APP_VERSION = "\K[^"]+' config.py)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "New version: $VERSION"
       
