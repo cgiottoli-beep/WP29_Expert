@@ -38,6 +38,67 @@ python init_db_helper.py
 streamlit run Home.py
 ```
 
+## 🔖 Versioning
+
+This project uses **automatic semantic versioning** based on [Conventional Commits](https://www.conventionalcommits.org/).
+
+### How it works
+
+When you push to the `main` branch, GitHub Actions automatically:
+1. Analyzes your commit messages
+2. Determines the version bump type
+3. Updates `config.py` with the new version and date
+4. Updates `CHANGELOG.md` with grouped changes
+5. Creates a Git tag (e.g., `v1.2.0`)
+6. Creates a GitHub Release
+
+### Commit Message Format
+
+Use these prefixes to control versioning:
+
+- `feat:` → **minor** version bump (1.1.0 → 1.2.0)
+  ```
+  feat: Add user profile page
+  feat(auth): Implement SSO login
+  ```
+
+- `fix:` → **patch** version bump (1.1.0 → 1.1.1)
+  ```
+  fix: Resolve login timeout issue
+  fix(ui): Correct button alignment
+  ```
+
+- `BREAKING CHANGE:` → **major** version bump (1.1.0 → 2.0.0)
+  ```
+  feat!: Redesign authentication flow
+  
+  BREAKING CHANGE: Old auth tokens are no longer valid
+  ```
+
+- Other prefixes (no version bump):
+  - `docs:` - Documentation changes
+  - `chore:` - Maintenance tasks
+  - `refactor:` - Code refactoring
+  - `style:` - Formatting changes
+  - `test:` - Test updates
+
+### Manual Version Bump
+
+You can also bump the version manually:
+
+```bash
+# Auto-detect from git commits
+python bump_version.py auto
+
+# Or specify the bump type
+python bump_version.py major   # 1.1.0 → 2.0.0
+python bump_version.py minor   # 1.1.0 → 1.2.0
+python bump_version.py patch   # 1.1.0 → 1.1.1
+
+# Dry run (preview changes without modifying files)
+python bump_version.py minor --dry-run
+```
+
 ## 📁 Project Structure
 
 ```

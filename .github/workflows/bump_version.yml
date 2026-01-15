@@ -1,0 +1,103 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    
+    # Skip if commit message contains [skip ci] or is a version bump commit
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, 'chore: Release v')"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for git log
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Determine version bump type
+        id: bump_type
+        run: |
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          if [ -z "$LAST_TAG" ]; then
+            echo "No previous tags found, analyzing all commits"
+            COMMITS=$(git log --pretty=format:"%s")
+          else
+            echo "Last tag: $LAST_TAG"
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"%s")
+          fi
+          
+          echo "Analyzing commits:"
+          echo "$COMMITS"
+          
+          # Check for breaking changes
+          if echo "$COMMITS" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore)(\(.+\))?!:|BREAKING CHANGE:"; then
+            echo "bump=major" >> $GITHUB_OUTPUT
+            echo "Detected BREAKING CHANGE → major bump"
+          # Check for features
+          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+            echo "bump=minor" >> $GITHUB_OUTPUT
+            echo "Detected feat → minor bump"
+          # Check for fixes or other changes
+          elif echo "$COMMITS" | grep -qE "^fix(\(.+\))?:"; then
+            echo "bump=patch" >> $GITHUB_OUTPUT
+            echo "Detected fix → patch bump"
+          else
+            echo "bump=none" >> $GITHUB_OUTPUT
+            echo "No conventional commits found, skipping version bump"
+          fi
+      
+      - name: Bump version
+        if: steps.bump_type.outputs.bump != 'none'
+        run: |
+          python bump_version.py ${{ steps.bump_type.outputs.bump }}
+      
+      - name: Get new version
+        if: steps.bump_type.outputs.bump != 'none'
+        id: get_version
+        run: |
+          VERSION=$(python -c "from config import Config; print(Config.APP_VERSION)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $VERSION"
+      
+      - name: Commit and push changes
+        if: steps.bump_type.outputs.bump != 'none'
+        run: |
+          git add config.py CHANGELOG.md
+          git commit -m "chore: Release v${{ steps.get_version.outputs.version }} [skip ci]"
+          git tag "v${{ steps.get_version.outputs.version }}"
+          git push origin main
+          git push origin "v${{ steps.get_version.outputs.version }}"
+      
+      - name: Create GitHub Release
+        if: steps.bump_type.outputs.bump != 'none'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          release_name: Release v${{ steps.get_version.outputs.version }}
+          body: |
+            ## What's Changed
+            
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+            
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}
+          draft: false
+          prerelease: false
