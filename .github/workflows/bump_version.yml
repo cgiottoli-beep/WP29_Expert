@@ -24,6 +24,10 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: Install dependencies
+        run: |
+          pip install python-dotenv
+      
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
