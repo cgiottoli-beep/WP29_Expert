@@ -17,6 +17,19 @@ class EmbeddingService:
         Generate and store embeddings for a document
         Optional progress_callback(current, total)
         """
+        import streamlit as st
+        from datetime import datetime
+        
+        # Setup logging to file
+        log_file = "h:/My Drive/Antigravity/WP29_Expert/embedding_errors.log"
+        
+        def log_message(msg):
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] {msg}\n")
+        
+        log_message(f"=== Starting embedding generation for document {document_id} ===")
+        
         # Determine authority level based on doc_type
         authority_level = 10 if doc_type in ['Report', 'Agenda'] else 1
         
@@ -28,6 +41,9 @@ class EmbeddingService:
         
         total_chunks = len(chunks)
         embeddings_created = 0
+        upload_errors = []
+        
+        log_message(f"Processing {total_chunks} chunks...")
         
         for i, chunk in enumerate(chunks):
             # Report progress
@@ -41,10 +57,12 @@ class EmbeddingService:
             try:
                 embedding = GeminiClient.generate_embedding(chunk)
             except Exception as e:
-                print(f"Error generating embedding API call: {e}")
+                error_msg = f"Embedding API error chunk {i}: {e}"
+                log_message(error_msg)
                 continue
             
             # NEW: Upload chunk to Storage instead of saving in DB
+            storage_path = None
             try:
                 # Create JSON payload
                 chunk_data = {
@@ -57,19 +75,42 @@ class EmbeddingService:
                 
                 # Upload to chunks_cache bucket
                 storage_path = f"{document_id}/chunk_{i}.json"
+                log_message(f"Attempting upload: {storage_path}")
                 SupabaseClient.upload_json(storage_path, chunk_data)
+                log_message(f"✅ Successfully uploaded {storage_path}")
                 
-                # Store embedding in DB with path reference
+            except Exception as upload_error:
+                error_msg = f"❌ Storage upload FAILED for chunk {i}: {type(upload_error).__name__}: {str(upload_error)}"
+                log_message(error_msg)
+                upload_errors.append(error_msg)
+                storage_path = None  # Don't set path if upload failed
+            
+            # Store embedding in DB (with or without path)
+            try:
                 SupabaseClient.create_embedding(
                     source_id=document_id,
                     source_type="document",
                     embedding=embedding,
                     authority_level=authority_level,
-                    content_path=storage_path
+                    content_path=storage_path  # Will be None if upload failed
                 )
                 embeddings_created += 1
+                if storage_path:
+                    log_message(f"✅ Embedding {i} saved WITH storage path")
+                else:
+                    log_message(f"⚠️ Embedding {i} saved WITHOUT storage path")
             except Exception as e:
-                print(f"Error storing embedding: {e}")
+                error_msg = f"DB save error chunk {i}: {e}"
+                log_message(error_msg)
+        
+        if upload_errors:
+            log_message(f"\n❌ SUMMARY: {len(upload_errors)} storage upload errors:")
+            for err in upload_errors[:5]:
+                log_message(f"  {err}")
+        else:
+            log_message(f"✅ All {embeddings_created} chunks uploaded successfully!")
+        
+        log_message(f"=== Finished: {embeddings_created} embeddings created ===\n")
         
         return embeddings_created
     

@@ -155,6 +155,16 @@ with tab1:
                 # Auto-detect Regulation ID
                 ai_regs = meta.get('mentioned_regulations') or []
                 
+                # Deduplicate while preserving order
+                if ai_regs:
+                    seen = set()
+                    unique_regs = []
+                    for reg in ai_regs:
+                        if reg not in seen:
+                            seen.add(reg)
+                            unique_regs.append(reg)
+                    ai_regs = unique_regs
+                
                 # PRE-GENERATE chunks immediately while bytes are fresh
                 chunks = []
                 try:
@@ -269,7 +279,7 @@ with tab1:
                             except Exception as db_err:
                                 raise Exception(f"DB create failed: {db_err}")
                             
-                            # Step 4: Store pre-generated embeddings
+                            # Step 4: Store pre-generated embeddings with NEW storage system
                             if item['embed'] and len(item.get('pre_chunks', [])) > 0:
                                 try:
                                     chunks = item['pre_chunks']
@@ -290,13 +300,30 @@ with tab1:
                                         
                                         # Generate embedding
                                         embedding = GeminiClient.generate_embedding(chunk)
-                                        # Store
+                                        
+                                        # NEW: Upload chunk to Storage
+                                        storage_path = None
+                                        try:
+                                            chunk_data = {
+                                                "text": chunk,
+                                                "source_id": doc_id,
+                                                "source_type": "document",
+                                                "chunk_index": chunk_idx,
+                                                "authority_level": authority_level
+                                            }
+                                            storage_path = f"{doc_id}/chunk_{chunk_idx}.json"
+                                            SupabaseClient.upload_json(storage_path, chunk_data)
+                                        except Exception as upload_err:
+                                            st.warning(f"Storage upload failed for chunk {chunk_idx}: {upload_err}")
+                                            storage_path = None
+                                        
+                                        # Store embedding with path reference
                                         SupabaseClient.create_embedding(
                                             source_id=doc_id,
                                             source_type="document",
-                                            content_chunk=chunk,
                                             embedding=embedding,
-                                            authority_level=authority_level
+                                            authority_level=authority_level,
+                                            content_path=storage_path  # NEW: path to JSON in storage
                                         )
                                         embeddings_created += 1
                                         

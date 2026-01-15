@@ -336,9 +336,16 @@ try:
         
         
         if reports_agendas:
-            # Initialize selection state
-            if 'selected_reports' not in st.session_state:
-                st.session_state.selected_reports = set()
+            # Count selected documents from checkbox states
+            def get_selected_report_ids(docs):
+                selected_ids = []
+                for doc in docs:
+                    checkbox_key = f"cb_rep_{doc['id']}"
+                    if st.session_state.get(checkbox_key, False):
+                        selected_ids.append(doc['id'])
+                return selected_ids
+            
+            selected_report_ids = get_selected_report_ids(reports_agendas)
             
             # Header with Delete buttons
             col_header, col_delete_selected, col_delete_all = st.columns([2, 1, 1])
@@ -346,16 +353,18 @@ try:
                 st.markdown("### 📋 Outcomes & Agenda")
                 st.markdown("*Session reports and agendas (high authority)*")
             with col_delete_selected:
-                selected_count = len(st.session_state.selected_reports)
+                selected_count = len(selected_report_ids)
                 if st.button(f"🗑️ Delete Selected ({selected_count})", type="secondary", disabled=selected_count == 0, help="Delete checked documents", key="del_sel_reports"):
                     st.session_state.confirm_delete_selected_reports = True
+                    st.session_state.selected_reports_for_deletion = selected_report_ids
             with col_delete_all:
                 if st.button("🗑️ Delete All Reports", type="secondary", help="Delete all reports/agendas in view", key="del_all_reports"):
                     st.session_state.confirm_delete_all_reports = True
             
             # Delete Selected Confirmation
             if st.session_state.get('confirm_delete_selected_reports'):
-                selected_docs = [d for d in reports_agendas if d['id'] in st.session_state.selected_reports]
+                deletion_ids = st.session_state.get('selected_reports_for_deletion', [])
+                selected_docs = [d for d in reports_agendas if d['id'] in deletion_ids]
                 st.error(f"⚠️ **WARNING:** This will permanently delete {len(selected_docs)} selected reports/agendas!")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -381,8 +390,14 @@ try:
                             else:
                                 st.success(f"✅ Deleted {deleted_count} selected reports/agendas")
                             
-                            st.session_state.selected_reports = set()
+                            # Clear checkbox states for deleted docs
+                            for doc_id in deletion_ids:
+                                checkbox_key = f"cb_rep_{doc_id}"
+                                if checkbox_key in st.session_state:
+                                    del st.session_state[checkbox_key]
+                            
                             del st.session_state.confirm_delete_selected_reports
+                            del st.session_state.selected_reports_for_deletion
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error during deletion: {e}")
@@ -444,16 +459,14 @@ try:
                 
                 # Checkbox Column
                 with cols[0]:
+                    # Use doc ID as key to persist state across reruns
+                    checkbox_key = f"cb_rep_{doc['id']}"
                     is_selected = st.checkbox(
                         "",
-                        value=doc['id'] in st.session_state.selected_reports,
-                        key=f"cb_rep_{idx}",
+                        value=checkbox_key in st.session_state and st.session_state[checkbox_key],
+                        key=checkbox_key,
                         label_visibility="collapsed"
                     )
-                    if is_selected:
-                        st.session_state.selected_reports.add(doc['id'])
-                    else:
-                        st.session_state.selected_reports.discard(doc['id'])
                 
                 # Status Column
                 with cols[1]:
@@ -533,9 +546,19 @@ try:
         # ====================================================================
         
         if working_docs:
-            # Initialize selection state
-            if 'selected_docs' not in st.session_state:
-                st.session_state.selected_docs = set()
+            # Count selected documents from checkbox states
+            def get_selected_doc_ids(docs):
+                selected_ids = []
+                for doc in docs:
+                    checkbox_key = f"cb_doc_{doc['id']}"
+                    if st.session_state.get(checkbox_key, False):
+                        selected_ids.append(doc['id'])
+                # Debug: show what we found
+                if len(selected_ids) > 0:
+                    st.info(f"DEBUG: Found {len(selected_ids)} selected docs: {selected_ids[:3]}")
+                return selected_ids
+            
+            selected_doc_ids = get_selected_doc_ids(working_docs)
             
             # Header with Delete buttons
             col_header, col_delete_selected, col_delete_all = st.columns([2, 1, 1])
@@ -543,16 +566,18 @@ try:
                 st.markdown("### 📄 Working Documents")
                 st.markdown("*Formal and informal proposals*")
             with col_delete_selected:
-                selected_count = len(st.session_state.selected_docs)
+                selected_count = len(selected_doc_ids)
                 if st.button(f"🗑️ Delete Selected ({selected_count})", type="secondary", disabled=selected_count == 0, help="Delete checked documents"):
                     st.session_state.confirm_delete_selected = True
+                    st.session_state.selected_for_deletion = selected_doc_ids
             with col_delete_all:
                 if st.button("🗑️ Delete All Documents", type="secondary", help="Delete all documents in current view"):
                     st.session_state.confirm_delete_all = True
             
             # Delete Selected Confirmation
             if st.session_state.get('confirm_delete_selected'):
-                selected_docs = [d for d in working_docs if d['id'] in st.session_state.selected_docs]
+                deletion_ids = st.session_state.get('selected_for_deletion', [])
+                selected_docs = [d for d in working_docs if d['id'] in deletion_ids]
                 st.error(f"⚠️ **WARNING:** This will permanently delete {len(selected_docs)} selected documents!")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -580,8 +605,14 @@ try:
                             else:
                                 st.success(f"✅ Deleted {deleted_count} selected documents and files")
                             
-                            st.session_state.selected_docs = set()
+                            # Clear checkbox states for deleted docs
+                            for doc_id in deletion_ids:
+                                checkbox_key = f"cb_doc_{doc_id}"
+                                if checkbox_key in st.session_state:
+                                    del st.session_state[checkbox_key]
+                            
                             del st.session_state.confirm_delete_selected
+                            del st.session_state.selected_for_deletion
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error during deletion: {e}")
@@ -748,16 +779,14 @@ try:
                 
                 # Checkbox Column
                 with cols[0]:
+                    # Use doc ID as key to persist state across reruns
+                    checkbox_key = f"cb_doc_{doc['id']}"
                     is_selected = st.checkbox(
                         "",
-                        value=doc['id'] in st.session_state.selected_docs,
-                        key=f"cb_doc_{idx}",
+                        value=checkbox_key in st.session_state and st.session_state[checkbox_key],
+                        key=checkbox_key,
                         label_visibility="collapsed"
                     )
-                    if is_selected:
-                        st.session_state.selected_docs.add(doc['id'])
-                    else:
-                        st.session_state.selected_docs.discard(doc['id'])
                 
                 # Status Column
                 with cols[1]:
