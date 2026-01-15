@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.2.0] - 2026-01-15
+
+### Added
+- Implement automated semantic versioning and release management with a version bump script and GitHub Actions workflow.
+- Add Smart Ingestion and Search Session pages, alongside new tests and utility scripts for document processing, embeddings, and storage.
+
+### Fixed
+- Add write permissions to GitHub Actions workflow
+- Use grep to read version instead of Python import
+- Install python-dotenv in GitHub Actions workflow
+
+### Changed
+- selected deletion
+
+
 ## [0.1.0] - 2026-01-08
 
 ### Added

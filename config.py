@@ -29,8 +29,8 @@ class Config:
     GEMINI_EMBEDDING_MODEL = "models/embedding-001"
     
     # App Version
-    APP_VERSION = "1.1.0"
-    APP_DATE = "2026-01-13"
+    APP_VERSION = "1.2.0"
+    APP_DATE = "2026-01-15"
     
     @classmethod
     def validate(cls):
